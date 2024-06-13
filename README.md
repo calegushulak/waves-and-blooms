@@ -1,9 +1,3 @@
----
-editor_options: 
-  markdown: 
-    wrap: 72
----
-
 **R files analyzing long-term wind and cyanobacterial data from Lake
 Mendota.**
 
