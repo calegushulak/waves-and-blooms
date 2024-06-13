@@ -1,15 +1,18 @@
+# Buoy by Hilary Dugan, updated 2024-06-13
+
 ## Wave height and period calculation for high res wind speed and direction data
 library(tidyverse)
 library(lubridate)
-library(climaemet)
 
-# Download Mendota high-frequency data 
+# Download Mendota high-frequency data from Environmental Data Initiative 
+# North Temperate Lakes LTER: High Frequency Data: Meteorological, Dissolved Oxygen, Chlorophyll, Phycocyanin - Lake Mendota Buoy 2006 - current
+# https://portal.edirepository.org/nis/mapbrowse?scope=knb-lter-ntl&identifier=129
 inUrl3  <- "https://pasta.lternet.edu/package/data/eml/knb-lter-ntl/129/36/af29c64a7de5ad797b5709b5f7718cb9" 
 infile3 <- tempfile()
 download.file(inUrl3,infile3,method="curl")
 buoy.hf <- read_csv(infile3) 
 
-# Create hourly dataframe (needed because published data don't average wind direction correctly)
+# Create hourly dataframe where wind direction is averaged correctly 
 buoy.hour = buoy.hf |> 
   mutate(datetime = ymd_hms(paste(sampledate,sampletime))) |> 
   select(datetime, sampledate, phyco = phyco_rfu, chl = chlor_rfu, 
@@ -23,21 +26,6 @@ buoy.hour = buoy.hf |>
   mutate(wdir = as.vector(atan2(Uu,Vv) * 360/2/pi)) |> 
   mutate(wdir = if_else(wdir < 0, wdir+360, wdir)) #if <0 add 360 
   
-
-### drop NAs for windrose
-hres.d <- buoy.hour %>%
-  drop_na()
-speed <- hres.d$wspd
-direction <- hres.d$wdir
-
-### Plot windrose for sanity check 
-ggwindrose(speed, direction,
-             n_directions=16,
-             #n_speeds=7,
-             speed_cuts=seq(0,21,3),
-             calm_wind = 0,
-             col_pal="ag_GrnYl")
-
 
 ### Now add fetch values based on buoy location
 ### fetch is in meters
@@ -74,7 +62,6 @@ buoy.hour <- buoy.hour %>%
 ## corrected by Ben
 buoy.hour <- buoy.hour %>%
   mutate(Ef.fetch = 5.23e-3 * sqrt(fr.vel.ms*9.81*(3600^3)))
-
 
 ## Wave height
 buoy.hour <- buoy.hour %>%
@@ -120,22 +107,17 @@ buoy.diff = buoy.hour |>
   group_by(sampledate, year) |> 
   summarise_all(mean) |> 
   ungroup() |> 
-  mutate(chlDiff = c(NA, diff(chl))) |> 
   mutate(phycoDiff = c(NA, diff(phyco))) |> 
   mutate(wspdDiff = c(NA, diff(wspd))) |> 
   mutate(waveDiff = c(NA, diff(H.cm))) |> 
   mutate(windGroup = if_else(wspd > 5, '> 5 m/s', '< 5 m/s'))
 
-
 ggplot(buoy.diff |> filter(!is.na(H.cm))) +
   geom_smooth(aes(x = H.cm, phycoDiff), col = 'lightblue4', method = 'lm') +
   geom_point(aes(x = H.cm, phycoDiff, fill = windGroup), shape = 21, stroke = 0.2) +
   scale_fill_manual(values = c('#96b59a', 'lightblue4'), name = 'Wind Speed') +
-  # ylim(-1,1) +
-  # facet_wrap(~windGroup) +
-  xlab('[← got calmer]        Daily difference in wave height (cm)       [got wavier →]') +
+  xlab('Wave height (cm)') +
   ylab('Daily difference in phycocyanin [scaled]') +
   theme_bw(base_size = 9)
 
-ggsave('waveheight_phyco.png', width = 6, height = 3, units = 'in', dpi = 500)
- 
+ggsave('Figures/waveheight_phyco.png', width = 6, height = 3, units = 'in', dpi = 500)
